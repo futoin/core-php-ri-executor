@@ -27,9 +27,13 @@
 <file>tests/BootstrapTest.php</file>
 </testsuite>
 
+        <testsuite name="Core RI Executor">
+            <file>tests/ExecutorTest.php</file>
+        </testsuite>
+
         <testsuite name="Core RI Invoker">
-            <file>tests/BootstrapTest.php</file>
-            <file>tests/SimpleCCMTest.php</file>
+            <file>vendor/futoin/core-php-ri-invoker/tests/SimpleCCMTest.php</file>
+            <file>vendor/futoin/core-php-ri-invoker/tests/AdvancedCCMTest.php</file>
         </testsuite>
         
         <testsuite name="Core RI AsyncSteps">

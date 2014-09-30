@@ -12,9 +12,10 @@
     "homepage" : "http://futoin.org",
     "require" : {
         "php" : ">=5.5",
-        "futoin/core-php-api" : ">=0.2",
-        "futoin/core-php-ri-asyncsteps" : ">=0.99.4",
-        "futoin/core-php-ri-invoker" : ">=0.1"
+        "futoin/core-php-api" : "@dev",
+        "futoin/core-php-ri-asyncsteps" : "@dev",
+        "futoin/core-php-ri-invoker" : "@dev",
+        "ext-json": "*"
     },
     "require-dev" : {
         "phpunit/phpunit": ">=4.1",
