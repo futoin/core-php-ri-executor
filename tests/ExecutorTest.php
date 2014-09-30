@@ -49,4 +49,10 @@ class ExecutorTest extends PHPUnit_Framework_TestCase
         $this->executor->register( $this->as, 'srv.test:1.1', 'SomeClass' );
         $this->assertTrue( true );
     }
+    
+    public function testRequestInfo()
+    {
+        $req = new \FutoIn\RI\Executor\RequestInfo( $this->executor, 'Not Valid JSON' );
+        $this->assertEquals( $this->executor, $req->context() );
+    }
 }
