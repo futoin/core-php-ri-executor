@@ -12,6 +12,7 @@ namespace FutoIn\RI\Executor;
 
 use \FutoIn\RI\Executor\RequestInfo;
 use \FutoIn\RI\Invoker\Details\SpecTools;
+use \FutoIn\RI\Invoker\Details\RegistrationInfo;
 
 class Executor
     implements \FutoIn\Executor\Executor
@@ -102,16 +103,33 @@ class Executor
             $this->impls[$name] = [];
         }
         
-        $info = new \FutoIn\RI\Invoker\Details\RegistrationInfo;
+        $info = new RegistrationInfo;
         $info->iface = $name;
         $info->version = $ifacever[1];
-        $info->mjrver = $mjrmnr[0];
+        $info->mjrver = $mjr;
         $info->mnrver = $mjrmnr[1];
 
         SpecTools::loadSpec( $as, $info, $this->specdirs );
 
         $this->ifaces[$name][$mjr] = $info;
         $this->impls[$name][$mjr] = $impl;
+        
+        // Create aliases of super interfaces for runtime lookup
+        foreach ( $info->inherits as $sup )
+        {
+            $sup = explode( ':', $sup );
+            $supmjrmnr = explode( '.', $sup[1] );
+            $supname = $sup[0];
+            $supmjr = $supmjrmnr[0];
+            
+            $supinfo = new RegistrationInfo;
+            $supinfo->iface = $info->iface; // NOTE: this one is critical for implementation resolution
+            $supinfo->version = $sup[1];
+            $supinfo->mjrver = $supmjr;
+            $supinfo->mnrver = $supmjrmnr[1]; // NOTE: super minor version may no match subclass
+
+            $this->ifaces[$supname][$supmjr] = $supinfo;
+        }
     }
     
     /**
@@ -149,6 +167,7 @@ class Executor
                 // Step 3. Check constraints and function parameters
                 //---
                 $as->add(function($as) use ($reqinfo) {
+                    $as->checkConstraints( $as, $reqinfo );
                     $as->checkParams( $as, $reqinfo );
                     $as->successStep();
                 });
@@ -273,6 +292,26 @@ class Executor
         $as->_futoin_func_info = $finfo;
     }
 
+    protected function checkConstraints( \FutoIn\AsyncSteps $as, RequestInfo $reqinfo )
+    {
+        $constraints = $as->_futoin_iface_info->constraints;
+    
+        if ( isset( $constraints['SecureChannel'] ) &&
+             ( !isset( $reqinfo->{RequestInfo::INFO_SECURE_CHANNEL} ) ||
+               !$reqinfo->{RequestInfo::INFO_SECURE_CHANNEL} ) )
+        {
+            $as->error( \FutoIn\Error::SecurityError, "Insecure channel" );
+        }
+        
+        if ( isset( $constraints['AllowAnonymous'] ) &&
+             ( !isset( $reqinfo->{RequestInfo::INFO_USER_INFO} ) ||
+               !$reqinfo->{RequestInfo::INFO_USER_INFO} ) )
+        {
+            $as->error( \FutoIn\Error::SecurityError, "Insecure channel" );
+        }
+
+    }
+    
     protected function checkParams( \FutoIn\AsyncSteps $as, RequestInfo $reqinfo )
     {
         $rawreq = $reqinfo->{RequestInfo::INFO_RAW_REQUEST};
@@ -321,6 +360,7 @@ class Executor
     
     protected function getImpl( \FutoIn\AsyncSteps $as, RequestInfo $reqinfo )
     {
+        // NOTE: this one is critical, if called by inheritted interface, see register()
         $iname = $as->_futoin_iface_info->iface;
         $impl = $this->impls[$iname];
         
