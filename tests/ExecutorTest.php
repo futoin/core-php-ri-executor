@@ -7,6 +7,7 @@
 
 use \FutoIn\RI\Invoker\AdvancedCCM;
 use \FutoIn\RI\Executor\Executor;
+use \FutoIn\RI\Executor\RequestInfo;
 
  
 /**
@@ -50,9 +51,23 @@ class ExecutorTest extends PHPUnit_Framework_TestCase
         $this->assertTrue( true );
     }
     
-    public function testRequestInfo()
+    public function testReqInfo()
     {
-        $req = new \FutoIn\RI\Executor\RequestInfo( $this->executor, 'Not Valid JSON' );
+        $req = new RequestInfo( $this->executor, 'Not Valid JSON' );
         $this->assertEquals( $this->executor, $req->context() );
+        
+        $req = new RequestInfo( $this->executor, '{"p":{}}' );
+
+        $req->info();
+        $this->assertEquals( $req->info()->{RequestInfo::INFO_RAW_REQUEST}->p, $req->request() );
+        $this->assertEquals( $req->info()->{RequestInfo::INFO_RAW_RESPONSE}->r, $req->response() );
+        
+        $req->rawInput();
+        $req->rawOutput();
+        
+        $req->ignoreInvokerAbort();
+        $this->assertEquals( 1, ignore_user_abort(true) );
+        $req->ignoreInvokerAbort( false );
+        $this->assertEquals( 0, ignore_user_abort(false) );
     }
 }
