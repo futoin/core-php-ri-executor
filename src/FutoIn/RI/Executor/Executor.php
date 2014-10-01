@@ -207,6 +207,7 @@ class Executor
                     $this->checkResult( $as, $reqinfo );
                     
                     $this->signResponse( $as, $reqinfo );
+                    $this->packResult( $as, $reqinfo );
                     $as->successStep();
                 });
                 
@@ -229,6 +230,7 @@ class Executor
                 
                 // Even though request itself fails, send response
                 $this->signResponse( $as, $reqinfo );
+                $this->packResult( $as, $reqinfo );
                 $as->successStep();
             }
         );
@@ -387,6 +389,47 @@ class Executor
 
     protected function checkResult( \FutoIn\AsyncSteps $as, RequestInfo $reqinfo )
     {
+        $rsp = $reqinfo->{RequestInfo::INFO_RAW_RESPONSE};
+        $finfo = $as->_futoin_func_info;
+
+        // Check raw result
+        if ( $finfo->rawresult )
+        {
+            if ( count( get_object_vars( $rsp->r ) ) )
+            {
+                $as->error( \FutoIn\Error::InternalError, "Raw result is expected" );
+            }
+            
+            return;
+        }
+        
+        // check result variables
+        if ( isset( $finfo->result ) )
+        {
+            $resvars = $finfo->result;
+            
+            // NOTE: the must be no unknown result variables on executor side as exactly the
+            // specified interface version must be implemented
+            foreach ( $rsp->r as $k => $v )
+            {
+                if ( !isset( $resvars[$k] ) )
+                {
+                    $as->error( \FutoIn\Error::InternalError, "Unknown result variable $k" );
+                }
+                
+                SpecTools::checkFutoInType( $as, $resvars[$k]->type, $k, $v );
+                unset( $resvars[$k] );
+            }
+            
+            if ( count( $resvars ) )
+            {
+                $as->error( \FutoIn\Error::InternalError, "Missing result variables" );
+            }
+        }
+        elseif ( count( get_object_vars( $rsp->r ) ) )
+        {
+            $as->error( \FutoIn\Error::InternalError, "No result variables are expected" );
+        }
     }
 
     
@@ -398,6 +441,32 @@ class Executor
         }
 
         // TODO :
+    }
+    
+    protected function packResponse( \FutoIn\AsyncSteps $as, RequestInfo $reqinfo )
+    {
+        $reqinfo_info = $reqinfo->info();
+        $finfo = $as->_futoin_func_info;
+    
+        if ( $finfo->rawresult )
+        {
+            $reqinfo_info->{RequestInfo::INFO_RAW_RESPONSE} = null;
+            return;
+        }
+        
+        if ( !isset( $finfo->result ) &&
+             ( !isset( $reqinfo_info->{RequestInfo::INFO_RAW_REQUEST}->forcersp ) ||
+               !$reqinfo_info->{RequestInfo::INFO_RAW_REQUEST}->forcersp )
+        )
+        {
+            $reqinfo_info->{RequestInfo::INFO_RAW_RESPONSE} = null;
+            return;
+        }
+        
+        $reqinfo_info->{RequestInfo::INFO_RAW_RESPONSE} = json_encode(
+            $reqinfo_info->{RequestInfo::INFO_RAW_RESPONSE},
+            JSON_UNESCAPED_UNICODE
+        );
     }
     
     /**
