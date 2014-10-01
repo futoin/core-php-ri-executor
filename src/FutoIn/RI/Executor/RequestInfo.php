@@ -24,7 +24,8 @@ class RequestInfo
     public function __construct( \FutoIn\RI\Executor\Executor $ctx, $reqjson )
     {
         $this->ctx = $ctx;
-        $this->rawreq = json_decode( $reqjson );
+        $rawreq = json_decode( $reqjson );
+        $this->rawreq = $rawreq;
         
         $info = new \StdClass;
         $info->{self::INFO_RAW_REQUEST} = &$this->rawreq;
@@ -34,6 +35,11 @@ class RequestInfo
         $rawrsp->r = new \StdClass;
         $this->rawrsp = $rawrsp;
         $info->{self::INFO_RAW_RESPONSE} = &$this->rawrsp;
+        
+        if ( isset( $rawreq->rid ) )
+        {
+            $rawrsp->rid = $rawreq->rid;
+        }
     }
     
     public function __destruct()
@@ -46,7 +52,7 @@ class RequestInfo
      * Get request object
      * @return arguments (object)
      */
-    public function request()
+    public function params()
     {
         return $this->rawreq->p;
     }
@@ -55,7 +61,7 @@ class RequestInfo
      * Get response object
      * @return result data (object)
      */
-    public function response()
+    public function result()
     {
         return $this->rawrsp->r;
     }
@@ -111,5 +117,24 @@ class RequestInfo
     public function ignoreInvokerAbort( $ignore = true )
     {
         ignore_user_abort( $ignore );
+    }
+    
+    
+    /**
+     * info() access through RequestInfo interface / get value
+     * @param $name State variable name
+     */
+    public function &__get( $name )
+    {
+        return $this->info->$name;
+    }
+    
+    /**
+     * info() access through RequestInfo interface / check value
+     * @param $name State variable name
+     */
+    public function __isset( $name )
+    {
+        return isset( $this->info->$name );
     }
 }

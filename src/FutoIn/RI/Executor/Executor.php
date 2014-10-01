@@ -10,6 +10,9 @@
 
 namespace FutoIn\RI\Executor;
 
+use \FutoIn\RI\Executor\RequestInfo;
+use \FutoIn\RI\Invoker\Details\SpecTools;
+
 class Executor
     implements \FutoIn\Executor\Executor
 {
@@ -105,7 +108,7 @@ class Executor
         $info->mjrver = $mjrmnr[0];
         $info->mnrver = $mjrmnr[1];
 
-        \FutoIn\RI\Invoker\Details\SpecTools::loadSpec( $as, $info, $this->specdirs );
+        SpecTools::loadSpec( $as, $info, $this->specdirs );
 
         $this->ifaces[$name][$mjr] = $info;
         $this->impls[$name][$mjr] = $impl;
@@ -113,20 +116,257 @@ class Executor
     
     /**
      * Process request, received for arbitrary channel, including unit-test generated
-     * @param $async_completion - asynchronous completion interface
+     * @param $as - AsyncSteps interface
      * @return void
      */
-    public function process( \FutoIn\Executor\AsyncCompletion $asc )
+    public function process( \FutoIn\AsyncSteps $as )
     {
+        // Fundamental error
+        if ( !isset( $as->reqinfo ) ||
+             isset( $as->_futoin_func_info ) )
+        {
+            $as->error( \FutoIn\Error::InternalError, "Missing reqinfo" );
+        }
+
+        $as->add(
+            // Standard processing
+            //---
+            function($as){
+                $reqinfo = $as->reqinfo;
+                
+                // Step 1. Parsing interface and function info
+                //---
+                $this->getInfo( $as, $reqinfo );
+
+                // Step 2. Security
+                //---
+                $as->add(function($as) use ($reqinfo) {
+                    // TODO: check "sec" for HMAC -> MasterService
+                    // TODO: check for credentials auth -> 
+                    $as->successStep();
+                });
+                
+                // Step 3. Check constraints and function parameters
+                //---
+                $as->add(function($as) use ($reqinfo) {
+                    $as->checkParams( $as, $reqinfo );
+                    $as->successStep();
+                });
+                
+                // Step 4. Invoke implementation
+                //---
+                $as->add(function($as) use ($reqinfo) {
+                    $func = $as->_futoin_func;
+                    $impl = $this->getImpl( $as, $reqinfo );
+                    
+                    if ( $impl instanceof \FutoIn\Executor\AsyncImplementation )
+                    {
+                        $impl->$func( $as, $reqinfo );
+                        $as->successStep();
+                    }
+                    else
+                    {
+                        // TODO: run in separate task
+                        $result = $impl->$func( $reqinfo );
+                        $as->success( $result );
+                    }
+                });
+                
+                // Step 5. Gather result and sign succeeded response
+                //---
+                $as->add(function($as,$result=null) use ($reqinfo) {
+                    if ( $result !== null )
+                    {
+                        $r = $reqinfo->result();
+                        
+                        foreach( $result as $k => $v )
+                        {
+                            $r->$k = $v;
+                        }
+                    }
+                    
+                    $this->checkResult( $as, $reqinfo );
+                    
+                    $this->signResponse( $as, $reqinfo );
+                    $as->successStep();
+                });
+                
+            },
+            // Overall error catcher
+            //---
+            function($as,$err){
+                $reqinfo = $as->reqinfo;
+                
+                if ( !isset( SpecTools::$standard_errors[$err] ) &&
+                     ( !isset( $as->_futoin_func_info ) ||
+                       !isset( $as->_futoin_func_info->throws[$err] ) ) )
+                {
+                    $err = \FutoIn\Error::InternalError;
+                }
+                
+                $rawrsp = $reqinfo->{RequestInfo::INFO_RAW_RESPONSE};
+                $rawrsp->e = $err;
+                unset( $rawrsp->r );
+                
+                // Even though request itself fails, send response
+                $this->signResponse( $as, $reqinfo );
+                $as->successStep();
+            }
+        );
+    }
+    
+    protected function getInfo( \FutoIn\AsyncSteps $as, RequestInfo $reqinfo )
+    {
+        if ( !isset( $reqinfo->f ) )
+        {
+            $as->error( \FutoIn\Error::InvalidRequest, "Missing req->f" );
+        }
+        
+        //
+        $f = explode(':', (string)$reqinfo->f);
+        
+        if ( count( $f ) !== 3 )
+        {
+            $as->error( \FutoIn\Error::InvalidRequest, "Invalid req->f" );
+        }
+        
+        $iface = $f[0];
+        $func = $f[2];
+        
+        //
+        $v = explode('.', $f[1]);
+        
+        if ( ( count( $f ) !== 2 ) ||
+                !is_numeric( $v[0] ) ||
+                !is_numeric( $v[1] ) )
+        {
+            $as->error( \FutoIn\Error::InvalidRequest, "Invalid req->f (version)" );
+        }
+        
+        //
+        if ( !isset( $this->ifaces[$iface] ) )
+        {
+            $as->error( \FutoIn\Error::UnknownInterface );
+        }
+        
+        if ( !isset( $this->ifaces[$iface][$v[0]] ) )
+        {
+            $as->error( \FutoIn\Error::NotSupportedVersion, "Different major version" );
+        }
+        
+        $iface_info = $this->ifaces[$iface][$v[0]];
+        
+        if ( (int)$iface_info->mnrver < (int)$v[1] )
+        {
+            $as->error( \FutoIn\Error::NotSupportedVersion, "Iface version is too old" );
+        }
+        
+        if ( !isset( $iface_info->funcs[$func] ) )
+        {
+            $as->error( \FutoIn\Error::InvalidRequest, "Not defined interface function" );
+        }
+        
+        $finfo = $iface_info->funcs[$func];
+        
+        $as->_futoin_iface_info = $iface_info;
+        $as->_futoin_func = $func;
+        $as->_futoin_func_info = $finfo;
+    }
+
+    protected function checkParams( \FutoIn\AsyncSteps $as, RequestInfo $reqinfo )
+    {
+        $rawreq = $reqinfo->{RequestInfo::INFO_RAW_REQUEST};
+        $finfo = $as->_futoin_func_info;
+    
+        if ( $ctx->upload_data &&
+             !$finfo->rawupload )
+        {
+            $as->error( \FutoIn\Error::InvalidRequest, "Raw upload is not allowed" );
+        }
+        
+        if ( empty( $finfo->params ) && count( get_object_vars( $rawreq->p ) ) )
+        {
+            $as->error( \FutoIn\Error::InvalidRequest, "No params are defined" );
+        }
+        
+        $reqparams = $rawreq->p;
+        
+        // Check params
+        foreach ( $reqparams as $k => $v )
+        {
+            if ( !isset( $finfo->params[$k] ) )
+            {
+                $as->error( \FutoIn\Error::InvalidRequest, "Unknown parameter" );
+            }
+            
+            SpecTools::checkFutoInType( $as, $finfo->params[$k]->type, $k, $v );
+        }
+        
+        // Check missing params
+        foreach ( $finfo->params as $k => $v )
+        {
+            if ( !isset( $reqparams->$k ) )
+            {
+                if ( isset( $v->{"default"} ) )
+                {
+                    $reqparams->$k = $v->{"default"};
+                }
+                else
+                {
+                    $as->error( \FutoIn\Error::InvalidRequest, "Missing parameter" );
+                }
+            }
+        }
+    }
+    
+    protected function getImpl( \FutoIn\AsyncSteps $as, RequestInfo $reqinfo )
+    {
+        $iname = $as->_futoin_iface_info->iface;
+        $impl = $this->impls[$iname];
+        
+        if ( !is_object( $impl ) )
+        {
+            if ( is_string( $impl ))
+            {
+                $impl = new $impl( $this );
+            }
+            elseif( is_callable( $impl ) )
+            {
+                $impl = $impl( $this );
+            }
+            else
+            {
+                $as->error( \FutoIn\Error::InternalError, "Invalid implementation type" );
+            }
+            
+            $this->impls[$iname] = $impl;
+        }
+        
+        return $impl;
+    }
+
+    protected function checkResult( \FutoIn\AsyncSteps $as, RequestInfo $reqinfo )
+    {
+    }
+
+    
+    protected function signResponse( \FutoIn\AsyncSteps $as, RequestInfo $reqinfo )
+    {
+        if ( !isset( $reqinfo->{RequestInfo::INFO_DERIVED_KEY} ) )
+        {
+            return;
+        }
+
+        // TODO :
     }
     
     /**
      * A shortcut to check access through #acl interface
-     * @param $async_completion - asynchronous completion interface
+     * @param $as - AsyncSteps interface
      * @param $acd - Access Control Descriptor
      * @return void
      */
-    public function checkAccess( \FutoIn\Executor\AsyncCompletion $asc, array $acd )
+    public function checkAccess( \FutoIn\AsyncSteps $as, array $acd )
     {
         $as->error( \FutoIn\Error::NotImplemented );
     }

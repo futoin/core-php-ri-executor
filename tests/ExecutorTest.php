@@ -59,8 +59,13 @@ class ExecutorTest extends PHPUnit_Framework_TestCase
         $req = new RequestInfo( $this->executor, '{"p":{}}' );
 
         $req->info();
-        $this->assertEquals( $req->info()->{RequestInfo::INFO_RAW_REQUEST}->p, $req->request() );
-        $this->assertEquals( $req->info()->{RequestInfo::INFO_RAW_RESPONSE}->r, $req->response() );
+        $this->assertEquals( $req->info()->{RequestInfo::INFO_RAW_REQUEST}->p, $req->params() );
+        $this->assertEquals( $req->info()->{RequestInfo::INFO_RAW_RESPONSE}->r, $req->result() );
+        $this->assertEquals( $req->{RequestInfo::INFO_RAW_REQUEST}->p, $req->params() );
+        $this->assertEquals( $req->{RequestInfo::INFO_RAW_RESPONSE}->r, $req->result() );
+        $this->assertTrue( isset( $req->{RequestInfo::INFO_RAW_RESPONSE}->r ) );
+        $this->assertFalse( isset( $req->{RequestInfo::INFO_RAW_RESPONSE}->missing ) );
+        $this->assertFalse( isset( $req->missing ) );
         
         $req->rawInput();
         $req->rawOutput();
