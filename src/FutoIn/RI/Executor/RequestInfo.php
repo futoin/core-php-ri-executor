@@ -27,14 +27,25 @@ class RequestInfo
         $rawreq = json_decode( $reqjson );
         $this->rawreq = $rawreq;
         
-        $info = new \StdClass;
-        $info->{self::INFO_RAW_REQUEST} = &$this->rawreq;
-        $this->info = $info;
-        
         $rawrsp = new \StdClass;
         $rawrsp->r = new \StdClass;
         $this->rawrsp = $rawrsp;
-        $info->{self::INFO_RAW_RESPONSE} = &$this->rawrsp;
+        
+        $this->info = (object)[
+            self::INFO_X509_CN => null,
+            self::INFO_PUBKEY => null,
+            self::INFO_CLIENT_ADDR => null,
+            self::INFO_USER_AGENT => null,
+            self::INFO_COOKIES => [],
+            self::INFO_SECURE_CHANNEL => false,
+            self::INFO_REQUEST_TIME_FLOAT => microtime(true),
+            self::INFO_SECURITY_LEVEL => self::SL_ANONYMOUS,
+            self::INFO_USER_INFO => null,
+            self::INFO_RAW_REQUEST => &$this->rawreq,
+            self::INFO_RAW_RESPONSE => &$this->rawrsp,
+            self::INFO_DERIVED_KEY => null,
+            self::INFO_HAVE_RAW_UPLOAD => false,
+        ];
         
         if ( isset( $rawreq->rid ) )
         {

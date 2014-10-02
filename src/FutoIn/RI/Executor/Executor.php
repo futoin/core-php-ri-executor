@@ -151,7 +151,7 @@ class Executor
             //---
             function($as){
                 $reqinfo = $as->reqinfo;
-                
+
                 // Step 1. Parsing interface and function info
                 //---
                 $this->getInfo( $as, $reqinfo );
@@ -167,8 +167,8 @@ class Executor
                 // Step 3. Check constraints and function parameters
                 //---
                 $as->add(function($as) use ($reqinfo) {
-                    $as->checkConstraints( $as, $reqinfo );
-                    $as->checkParams( $as, $reqinfo );
+                    $this->checkConstraints( $as, $reqinfo );
+                    $this->checkParams( $as, $reqinfo );
                     $as->successStep();
                 });
                 
@@ -181,7 +181,6 @@ class Executor
                     if ( $impl instanceof \FutoIn\Executor\AsyncImplementation )
                     {
                         $impl->$func( $as, $reqinfo );
-                        $as->successStep();
                     }
                     else
                     {
@@ -194,6 +193,7 @@ class Executor
                 // Step 5. Gather result and sign succeeded response
                 //---
                 $as->add(function($as,$result=null) use ($reqinfo) {
+
                     if ( $result !== null )
                     {
                         $r = $reqinfo->result();
@@ -205,9 +205,9 @@ class Executor
                     }
                     
                     $this->checkResult( $as, $reqinfo );
-                    
+
                     $this->signResponse( $as, $reqinfo );
-                    $this->packResult( $as, $reqinfo );
+                    $this->packResponse( $as, $reqinfo );
                     $as->successStep();
                 });
                 
@@ -230,21 +230,23 @@ class Executor
                 
                 // Even though request itself fails, send response
                 $this->signResponse( $as, $reqinfo );
-                $this->packResult( $as, $reqinfo );
-                $as->successStep();
+                $this->packError( $as, $reqinfo );
+                $as->success();
             }
         );
     }
     
     protected function getInfo( \FutoIn\AsyncSteps $as, RequestInfo $reqinfo )
     {
-        if ( !isset( $reqinfo->f ) )
+        $reqinfo_info = $reqinfo->info();
+        
+        if ( !isset( $reqinfo_info->{RequestInfo::INFO_RAW_REQUEST}->f ) )
         {
             $as->error( \FutoIn\Error::InvalidRequest, "Missing req->f" );
         }
         
         //
-        $f = explode(':', (string)$reqinfo->f);
+        $f = explode(':', (string)$reqinfo_info->{RequestInfo::INFO_RAW_REQUEST}->f);
         
         if ( count( $f ) !== 3 )
         {
@@ -257,7 +259,7 @@ class Executor
         //
         $v = explode('.', $f[1]);
         
-        if ( ( count( $f ) !== 2 ) ||
+        if ( ( count( $v ) !== 2 ) ||
                 !is_numeric( $v[0] ) ||
                 !is_numeric( $v[1] ) )
         {
@@ -299,17 +301,15 @@ class Executor
         $constraints = $as->_futoin_iface_info->constraints;
     
         if ( isset( $constraints['SecureChannel'] ) &&
-             ( !isset( $reqinfo->{RequestInfo::INFO_SECURE_CHANNEL} ) ||
-               !$reqinfo->{RequestInfo::INFO_SECURE_CHANNEL} ) )
+             !$reqinfo->{RequestInfo::INFO_SECURE_CHANNEL} )
         {
             $as->error( \FutoIn\Error::SecurityError, "Insecure channel" );
         }
         
-        if ( isset( $constraints['AllowAnonymous'] ) &&
-             ( !isset( $reqinfo->{RequestInfo::INFO_USER_INFO} ) ||
-               !$reqinfo->{RequestInfo::INFO_USER_INFO} ) )
+        if ( !isset( $constraints['AllowAnonymous'] ) &&
+             !$reqinfo->{RequestInfo::INFO_USER_INFO} )
         {
-            $as->error( \FutoIn\Error::SecurityError, "Insecure channel" );
+            $as->error( \FutoIn\Error::SecurityError, "Anonymous not allowed" );
         }
 
     }
@@ -319,7 +319,7 @@ class Executor
         $rawreq = $reqinfo->{RequestInfo::INFO_RAW_REQUEST};
         $finfo = $as->_futoin_func_info;
     
-        if ( $ctx->upload_data &&
+        if ( $reqinfo->{RequestInfo::INFO_HAVE_RAW_UPLOAD} &&
              !$finfo->rawupload )
         {
             $as->error( \FutoIn\Error::InvalidRequest, "Raw upload is not allowed" );
@@ -362,14 +362,20 @@ class Executor
     
     protected function getImpl( \FutoIn\AsyncSteps $as, RequestInfo $reqinfo )
     {
+        $iface_info = $as->_futoin_iface_info;
         // NOTE: this one is critical, if called by inheritted interface, see register()
-        $iname = $as->_futoin_iface_info->iface;
-        $impl = $this->impls[$iname];
+        $iname = $iface_info->iface;
+        $impl = $this->impls[$iname][$iface_info->mjrver];
         
         if ( !is_object( $impl ) )
         {
-            if ( is_string( $impl ))
+            if ( is_string( $impl ) )
             {
+                if ( !class_exists( $impl, true ) )
+                {
+                    $as->error( \FutoIn\Error::InternalError, "Implementation class not found" );
+                }
+                
                 $impl = new $impl( $this );
             }
             elseif( is_callable( $impl ) )
@@ -381,9 +387,14 @@ class Executor
                 $as->error( \FutoIn\Error::InternalError, "Invalid implementation type" );
             }
             
+            if ( ! ( $impl instanceof \FutoIn\Executor\InterfaceImplementation ) )
+            {
+                $as->error( \FutoIn\Error::InternalError, "Implementation does not implement InterfaceImplementation" );
+            }
+            
             $this->impls[$iname] = $impl;
         }
-        
+
         return $impl;
     }
 
@@ -435,7 +446,7 @@ class Executor
     
     protected function signResponse( \FutoIn\AsyncSteps $as, RequestInfo $reqinfo )
     {
-        if ( !isset( $reqinfo->{RequestInfo::INFO_DERIVED_KEY} ) )
+        if ( !$reqinfo->{RequestInfo::INFO_DERIVED_KEY} )
         {
             return;
         }
@@ -446,6 +457,7 @@ class Executor
     protected function packResponse( \FutoIn\AsyncSteps $as, RequestInfo $reqinfo )
     {
         $reqinfo_info = $reqinfo->info();
+        
         $finfo = $as->_futoin_func_info;
     
         if ( $finfo->rawresult )
@@ -455,13 +467,23 @@ class Executor
         }
         
         if ( !isset( $finfo->result ) &&
-             ( !isset( $reqinfo_info->{RequestInfo::INFO_RAW_REQUEST}->forcersp ) ||
-               !$reqinfo_info->{RequestInfo::INFO_RAW_REQUEST}->forcersp )
+            ( !isset( $reqinfo_info->{RequestInfo::INFO_RAW_REQUEST}->forcersp ) ||
+            !$reqinfo_info->{RequestInfo::INFO_RAW_REQUEST}->forcersp )
         )
         {
             $reqinfo_info->{RequestInfo::INFO_RAW_RESPONSE} = null;
             return;
         }
+        
+        $reqinfo_info->{RequestInfo::INFO_RAW_RESPONSE} = json_encode(
+            $reqinfo_info->{RequestInfo::INFO_RAW_RESPONSE},
+            JSON_UNESCAPED_UNICODE
+        );
+    }
+    
+    protected function packError( \FutoIn\AsyncSteps $as, RequestInfo $reqinfo )
+    {
+        $reqinfo_info = $reqinfo->info();
         
         $reqinfo_info->{RequestInfo::INFO_RAW_RESPONSE} = json_encode(
             $reqinfo_info->{RequestInfo::INFO_RAW_RESPONSE},
