@@ -84,20 +84,21 @@ class Executor
         $name = $ifacever[0];
         $mjr = $mjrmnr[0];
         
-        // Unregister First
-        if ( isset( $this->iface_info[$name][$mjr] ) )
+        // Double registration is not allowed
+        if ( isset( $this->ifaces[$name][$mjr] ) )
         {
             $as->error( \FutoIn\Error::InternalError, "Already registered" );
         }
         
-        if ( !( $impl instanceof InterfaceImplementation ) &&
-             !is_string( $impl ) &&
+        if ( !is_string( $impl ) &&
+             !( $impl instanceof \FutoIn\Executor\InterfaceImplementation ) &&
+             !( $impl instanceof Closure ) &&
              !is_callable( $impl ) )
         {
             $as->error( \FutoIn\Error::InternalError, "Impl is not Object/String/Callable" );
         }
         
-        if ( !isset( $this->iface_info[$name] ) )
+        if ( !isset( $this->ifaces[$name] ) )
         {
             $this->ifaces[$name] = [];
             $this->impls[$name] = [];
@@ -123,10 +124,17 @@ class Executor
             $supmjr = $supmjrmnr[0];
             
             $supinfo = new RegistrationInfo;
-            $supinfo->iface = $info->iface; // NOTE: this one is critical for implementation resolution
+            $supinfo->iface = $supname;
             $supinfo->version = $sup[1];
             $supinfo->mjrver = $supmjr;
-            $supinfo->mnrver = $supmjrmnr[1]; // NOTE: super minor version may no match subclass
+            $supinfo->mnrver = $supmjrmnr[1];
+            $supinfo->derived = $info;
+            
+            if ( isset( $this->ifaces[$supname][$supmjr] ) )
+            {
+                unset( $this->ifaces[$name][$mjr] );
+                $as->error( \FutoIn\Error::InternalError, "Conflict with inherited interfaces" );
+            }
 
             $this->ifaces[$supname][$supmjr] = $supinfo;
         }
@@ -177,6 +185,11 @@ class Executor
                 $as->add(function($as) use ($reqinfo) {
                     $func = $as->_futoin_func;
                     $impl = $this->getImpl( $as, $reqinfo );
+                    
+                    if ( !method_exists( $impl, $func ) )
+                    {
+                        $as->error( \FutoIn\Error::InternalError, "Missing function implementation" );
+                    }
                     
                     if ( $impl instanceof \FutoIn\Executor\AsyncImplementation )
                     {
@@ -269,7 +282,7 @@ class Executor
         //
         if ( !isset( $this->ifaces[$iface] ) )
         {
-            $as->error( \FutoIn\Error::UnknownInterface );
+            $as->error( \FutoIn\Error::UnknownInterface, "Unknown Interface" );
         }
         
         if ( !isset( $this->ifaces[$iface][$v[0]] ) )
@@ -282,6 +295,12 @@ class Executor
         if ( (int)$iface_info->mnrver < (int)$v[1] )
         {
             $as->error( \FutoIn\Error::NotSupportedVersion, "Iface version is too old" );
+        }
+        
+        // Jump to actual implementation
+        if ( isset( $iface_info->derived ) )
+        {
+            $iface_info = $iface_info->derived;
         }
         
         if ( !isset( $iface_info->funcs[$func] ) )
@@ -325,49 +344,52 @@ class Executor
             $as->error( \FutoIn\Error::InvalidRequest, "Raw upload is not allowed" );
         }
         
-        if ( empty( $finfo->params ) && count( get_object_vars( $rawreq->p ) ) )
+        if ( isset( $rawreq->p ) )
         {
-            $as->error( \FutoIn\Error::InvalidRequest, "No params are defined" );
-        }
-        
-        $reqparams = $rawreq->p;
-        
-        // Check params
-        foreach ( $reqparams as $k => $v )
-        {
-            if ( !isset( $finfo->params[$k] ) )
+            $reqparams = $rawreq->p;
+            
+            // Check params
+            foreach ( $reqparams as $k => $v )
             {
-                $as->error( \FutoIn\Error::InvalidRequest, "Unknown parameter" );
+                if ( !isset( $finfo->params[$k] ) )
+                {
+                    $as->error( \FutoIn\Error::InvalidRequest, "Unknown parameter" );
+                }
+                
+                SpecTools::checkFutoInType( $as, $finfo->params[$k]->type, $k, $v );
             }
             
-            SpecTools::checkFutoInType( $as, $finfo->params[$k]->type, $k, $v );
-        }
-        
-        // Check missing params
-        foreach ( $finfo->params as $k => $v )
-        {
-            if ( !isset( $reqparams->$k ) )
+            // Check missing params
+            foreach ( $finfo->params as $k => $v )
             {
-                if ( isset( $v->{"default"} ) )
+                if ( !isset( $reqparams->$k ) )
                 {
-                    $reqparams->$k = $v->{"default"};
-                }
-                else
-                {
-                    $as->error( \FutoIn\Error::InvalidRequest, "Missing parameter" );
+                    if ( property_exists( $v, 'default' ) )
+                    {
+                        $reqparams->$k = $v->{"default"};
+                    }
+                    else
+                    {
+                        $as->error( \FutoIn\Error::InvalidRequest, "Missing parameter" );
+                    }
                 }
             }
+        }
+        elseif ( !empty( $finfo->params ) )
+        {
+            $as->error( \FutoIn\Error::InvalidRequest, "Missing parameter" );
         }
     }
     
     protected function getImpl( \FutoIn\AsyncSteps $as, RequestInfo $reqinfo )
     {
         $iface_info = $as->_futoin_iface_info;
-        // NOTE: this one is critical, if called by inheritted interface, see register()
-        $iname = $iface_info->iface;
-        $impl = $this->impls[$iname][$iface_info->mjrver];
         
-        if ( !is_object( $impl ) )
+        $iname = $iface_info->iface;
+        $imjr = $iface_info->mjrver;
+        $impl = $this->impls[$iname][$imjr];
+        
+        if ( ! ( $impl instanceof \FutoIn\Executor\InterfaceImplementation ) )
         {
             if ( is_string( $impl ) )
             {
@@ -378,9 +400,13 @@ class Executor
                 
                 $impl = new $impl( $this );
             }
-            elseif( is_callable( $impl ) )
+            elseif( $impl instanceof Closure )
             {
                 $impl = $impl( $this );
+            }
+            elseif( is_callable( $impl ) )
+            {
+                $impl = call_user_func( $impl, $this );
             }
             else
             {
@@ -392,7 +418,7 @@ class Executor
                 $as->error( \FutoIn\Error::InternalError, "Implementation does not implement InterfaceImplementation" );
             }
             
-            $this->impls[$iname] = $impl;
+            $this->impls[$iname][$imjr] = $impl;
         }
 
         return $impl;
@@ -519,5 +545,12 @@ class Executor
     public function cacheInit( \FutoIn\AsyncSteps $as )
     {
         $as->error( \FutoIn\Error::NotImplemented );
+    }
+    
+    
+    /** @internal */
+    public function __clone()
+    {
+        throw new \FutoIn\Error( \FutoIn\Error::InternalError );
     }
 }

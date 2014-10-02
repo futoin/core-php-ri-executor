@@ -44,10 +44,60 @@ class ExecutorTest extends PHPUnit_Framework_TestCase
         $this->executor = null;
         gc_collect_cycles();
     }
-
+    
+    /**
+     * @expectedException \FutoIn\Error
+     */
+    public function testForbidCloneExecutor()
+    {
+        clone $this->executor;
+        $this->assertTrue( true );
+    }
+    
     public function testRegistration()
     {
         $this->executor->register( $this->as, 'srv.test:1.1', 'SomeClass' );
+        $this->assertTrue( true );
+    }
+    
+    public function testDoubleReg()
+    {
+        $this->as->add(
+            function($as){
+                $this->executor->register( $as, 'srv.test:1.1', 'SomeClass' );
+                $this->executor->register( $as, 'srv.test:1.1', 'SomeClass2' );
+                $as->successStep();
+            },
+            function($as, $err)
+            {
+                $this->assertEquals( "Already registered", $as->error_info );
+                $this->assertEquals( \FutoIn\Error::InternalError, $err );
+            }
+        )->add(function($as){
+            $this->assertFalse( true );
+        });
+        
+        $this->as->run();
+    }
+    
+    public function testInheritReg()
+    {
+        $this->as->add(
+            function($as){
+                $this->executor->register( $as, 'exec.base:1.1', 'SomeClass' );
+                $this->executor->register( $as, 'exec.derived:1.3', 'SomeClass2' );
+                $as->successStep();
+            },
+            function($as, $err)
+            {
+                $this->assertEquals( "Conflict with inherited interfaces", $as->error_info );
+                $this->assertEquals( \FutoIn\Error::InternalError, $err );
+            }
+        )->add(function($as){
+            $this->assertTrue( false );
+        });
+        
+        $this->as->run();
         $this->assertTrue( true );
     }
     
@@ -77,22 +127,59 @@ class ExecutorTest extends PHPUnit_Framework_TestCase
         if ( !defined('HHVM_VERSION') ) $this->assertEquals( 0, ignore_user_abort(false) );
     }
     
-    public function testExecutor()
+    /**
+     * @expectedException \FutoIn\Error
+     */
+    public function testForbidCloneRequestInfo()
+    {
+        clone new RequestInfo( $this->executor, '{"p":{}}' );
+        $this->assertTrue( true );
+    }
+
+    public function testExecutorStringImpl()
+    {
+        $this->commonTestExecutor( '\ExecutorTest_SrvTestImpl' );
+    }
+    
+    public function testExecutorInstImpl()
+    {
+        $this->commonTestExecutor( new \ExecutorTest_SrvTestImpl( $this->executor ) );
+    }
+    
+    public function testExecutorCallImpl()
+    {
+        $this->commonTestExecutor( [ $this, 'createSrvTestImpl' ] );
+    }
+    
+    public function createSrvTestImpl( $executor )
+    {
+        return new \ExecutorTest_SrvTestImpl( $executor );
+    }
+    
+    public function testExecutorClosureImpl()
+    {
+        $this->commonTestExecutor( function( $executor ){
+            return new \ExecutorTest_SrvTestImpl( $executor );
+        });
+    }
+    
+    public function commonTestExecutor( $impl )
     {
         $req = new \StdClass;
-        $req->f = 'srv.test:1.1:test';
+        $req->f = 'exec.base:1.1:ping';
         $req->p = new \StdClass;
         $req->p->ping = 'PINGPING';
-        
+
         $this->as->executed = false;
-        
+            
         $this->as->add(
-            function($as){
-                $this->executor->register( $as, 'srv.test:1.1', '\ExecutorTest_SrvTestImpl' );
+            function($as) use ($impl) {
+                $this->executor->register( $as, 'exec.base:1.1', $impl );
                 $as->successStep();
             },
             function($as, $err) {
                 var_dump( $err );
+                var_dump( $as->error_info );
             }
         )->add(
             function($as) use ( $req ){
@@ -120,17 +207,256 @@ class ExecutorTest extends PHPUnit_Framework_TestCase
         $this->as->run();
         $this->assertTrue($this->as->executed);
     }
+    
+    public function testInvalidFunc()
+    {
+        $this->commonTestExecutorError(
+            '{ "f" : "iface:1" }',
+            \FutoIn\Error::InvalidRequest,
+            "Invalid req->f"
+        );
+    }
+
+    public function testInvalidVersion()
+    {
+        $this->commonTestExecutorError(
+            '{ "f" : "iface:1:func" }',
+            \FutoIn\Error::InvalidRequest,
+            "Invalid req->f (version)"
+        );
+    }
+
+    public function testUnknownIface()
+    {
+        $this->commonTestExecutorError(
+            '{ "f" : "iface:1.1:func" }',
+            \FutoIn\Error::UnknownInterface,
+            "Unknown Interface"
+        );
+    }
+    
+    public function testNotSupportedMajor()
+    {
+        $this->commonTestExecutorError(
+            '{ "f" : "exec.base:2.1:func" }',
+            \FutoIn\Error::NotSupportedVersion,
+            "Different major version"
+        );
+    }
+    
+    public function testNotSupportedMinor()
+    {
+        $this->commonTestExecutorError(
+            '{ "f" : "exec.base:1.2:func" }',
+            \FutoIn\Error::NotSupportedVersion,
+            "Iface version is too old"
+        );
+    }
+    
+    public function testUnknownFunc()
+    {
+        $this->commonTestExecutorError(
+            '{ "f" : "exec.base:1.0:missing" }',
+            \FutoIn\Error::InvalidRequest,
+            "Not defined interface function"
+        );
+    }
+    
+    public function testSecureChannel()
+    {
+        $this->commonTestExecutorError(
+            '{ "f" : "exec.secure:1.0:ping" }',
+            \FutoIn\Error::SecurityError,
+            "Insecure channel"
+        );
+    }
+    
+    public function testAllowAnonymous()
+    {
+        $this->commonTestExecutorError(
+            '{ "f" : "exec.secure:1.0:ping" }',
+            \FutoIn\Error::SecurityError,
+            "Anonymous not allowed",
+            [
+                RequestInfo::INFO_SECURE_CHANNEL => true,
+            ]
+        );
+    }
+
+    public function testRawUpload()
+    {
+        $this->commonTestExecutorError(
+            '{ "f" : "exec.base:1.0:ping" }',
+            \FutoIn\Error::InvalidRequest,
+            "Raw upload is not allowed",
+            [
+                RequestInfo::INFO_HAVE_RAW_UPLOAD => true,
+            ]
+        );
+    }
+    
+    public function testUnknownParameter()
+    {
+        $this->commonTestExecutorError(
+            '{ "f" : "exec.base:1.0:ping",
+               "p" : {
+                    "f" : "1234"
+               }}',
+            \FutoIn\Error::InvalidRequest,
+            "Unknown parameter"
+        );
+    }
+    
+    public function testMissingParameter()
+    {
+        $this->commonTestExecutorError(
+            '{ "f" : "exec.base:1.0:advancedcall",
+               "p" : {
+                    "c" : 1
+               }}',
+            \FutoIn\Error::InvalidRequest,
+            "Missing parameter"
+        );
+    }
+    
+    public function testMissingParameter2()
+    {
+        $this->commonTestExecutorError(
+            '{ "f" : "exec.base:1.0:advancedcall" }',
+            \FutoIn\Error::InvalidRequest,
+            "Missing parameter"
+        );
+    }
+    
+    public function testParameterType()
+    {
+        $this->commonTestExecutorError(
+            '{ "f" : "exec.base:1.0:advancedcall",
+               "p" : {
+                    "a" : "a",
+                    "b" : 2,
+                    "c" : 3
+               }}',
+            \FutoIn\Error::InvalidRequest,
+            "Type mismatch for parameter"
+        );
+    }
+    
+    public function testDefaultValue()
+    {
+        $this->commonTestExecutorError(
+            '{ "f" : "exec.base:1.0:advancedcall",
+               "p" : {
+                    "a" : 1,
+                    "b" : 2,
+                    "c" : 3
+               }}',
+            \FutoIn\Error::InternalError,
+            ""
+        );
+    }
+    
+    public function testNoDefaultValue()
+    {
+        $this->commonTestExecutorError(
+            '{ "f" : "exec.derived:1.0:advancedcall",
+               "p" : {
+                    "a" : 1,
+                    "b" : 2,
+                    "c" : 3,
+                    "d" : "4"
+               }}',
+            \FutoIn\Error::InternalError,
+            ""
+        );
+    }
+    
+    public function testNoDefaultValue()
+    {
+        $this->commonTestExecutorError(
+            '{ "f" : "exec.derived:1.0:advancedcall",
+               "p" : {
+                    "a" : 1,
+                    "b" : 2,
+                    "c" : 3,
+                    "d" : "4"
+               }}',
+            \FutoIn\Error::InternalError,
+            "Missing function implementation"
+        );
+    }
+
+
+    public function commonTestExecutorError( $req_json, $exerr, $exerr_info, $add_info=[] )
+    {
+        $this->as->executed = false;
+            
+        $this->as->add(
+            function($as) {
+                $this->executor->register( $as, 'exec.derived:1.3', '\ExecutorTest_SrvTestImpl' );
+                $this->executor->register( $as, 'exec.secure:1.1', '\ExecutorTest_SrvTestImpl' );
+                $as->successStep();
+            },
+            function($as, $err) {
+                var_dump( $err );
+                var_dump( $as->error_info );
+            }
+        )->add(
+            function($as) use ( $req_json, $add_info ){
+                $as->reqinfo = new RequestInfo( $this->executor, $req_json );
+                
+                foreach( $add_info as $k => $v )
+                {
+                    $as->reqinfo->info()->{$k} = $v;
+                }
+                
+                $this->executor->process( $as );
+                $as->successStep();
+            },
+            function($as, $err) {
+                var_dump( $err );
+                var_dump($as->error_info);
+            }
+        )->add(
+            function($as) use ( $exerr, $exerr_info ){
+                $req = json_decode( $as->reqinfo->info()->{RequestInfo::INFO_RAW_RESPONSE} );
+                
+                $this->assertEquals( $exerr_info, $as->error_info );
+                $this->assertEquals( $exerr, $req->e );
+
+                $as->executed = true;
+                $as->success();
+            },
+            function($as, $err) {
+                var_dump( $err );
+            }
+        );
+        
+        $this->as->run();
+        $this->assertTrue($this->as->executed);
+    }
 }
 
 class ExecutorTest_SrvTestImpl 
     implements \FutoIn\Executor\InterfaceImplementation,
         \FutoIn\Executor\AsyncImplementation
 {
-    public function test( $as, $reqinfo )
+    public function ping( $as, $reqinfo )
     {
         $as->success([
             'ping' => $reqinfo->params()->ping,
             'pong' => 'PONGPONG',
         ]);
+    }
+    
+    public function advancedcall( $as, $reqinfo )
+    {
+        if ( is_null($reqinfo->params()->d) ||
+             ( $reqinfo->params()->d === "4" ) )
+        {
+            $as->error( \FutoIn\Error::InternalError );
+        }
+        
+        $as->success();
     }
 }

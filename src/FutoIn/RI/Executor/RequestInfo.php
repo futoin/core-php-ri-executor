@@ -148,4 +148,11 @@ class RequestInfo
     {
         return isset( $this->info->$name );
     }
+    
+    
+    /** @internal */
+    public function __clone()
+    {
+        throw new \FutoIn\Error( \FutoIn\Error::InternalError );
+    }
 }

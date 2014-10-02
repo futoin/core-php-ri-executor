@@ -1,0 +1,59 @@
+{
+    "iface" : "exec.base",
+    "version" : "1.1",
+    "funcs" : {
+        "ping" : {
+            "params" : {
+                "ping" : {
+                    "type" : "string"
+                }
+            },
+            "result" : {
+                "pong" : {
+                    "type" : "string"
+                },
+                "ping" : {
+                    "type" : "string"
+                }
+            }
+        },
+        "data" : {
+            "params" : {
+                "ping" : {
+                    "type" : "string"
+                }
+            },
+            "rawupload" : true,
+            "rawresult" : true
+        },
+        "throw" : {
+            "params" : {
+                "errtype" : {
+                    "type" : "string"
+                }
+            },
+            "throws" : [
+                "MyErrorType"
+            ]
+        },
+        "advancedcall" : {
+            "params" : {
+                "a" : {
+                    "type" : "integer"
+                },
+                "b" : {
+                    "type" : "integer"
+                },
+                "c" : {
+                    "type" : "integer",
+                    "default" : 0
+                }
+            }
+        },
+        "noimpl" : {
+        }
+    },
+    "requires" : [
+        "AllowAnonymous"
+    ]
+}
