@@ -10,7 +10,7 @@ Reference implementation of:
     FTN6: FutoIn Executor Concept
     Version: 1.0
     
-Spec: http://specs.futoin.org/final/preview/ftn6_iface_executor_concept-1.html
+Spec: [FTN6: Interface Executor Concept v1.x](http://specs.futoin.org/final/preview/ftn6_iface_executor_concept-1.html)
 
 [Web Site](http://futoin.org/)
 
