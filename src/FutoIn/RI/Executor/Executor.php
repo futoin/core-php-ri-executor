@@ -451,7 +451,7 @@ class Executor
             {
                 if ( !isset( $resvars[$k] ) )
                 {
-                    $as->error( \FutoIn\Error::InternalError, "Unknown result variable $k" );
+                    $as->error( \FutoIn\Error::InternalError, "Unknown result variable '$k'" );
                 }
                 
                 SpecTools::checkFutoInType( $as, $resvars[$k]->type, $k, $v );

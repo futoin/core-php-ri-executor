@@ -253,6 +253,15 @@ class ExecutorTest extends PHPUnit_Framework_TestCase
         );
     }
     
+    public function testNotSupportedMinor2()
+    {
+        $this->commonTestExecutorError(
+            '{ "f" : "exec.derived:1.4:func" }',
+            \FutoIn\Error::NotSupportedVersion,
+            "Iface version is too old"
+        );
+    }
+    
     public function testUnknownFunc()
     {
         $this->commonTestExecutorError(
@@ -371,20 +380,51 @@ class ExecutorTest extends PHPUnit_Framework_TestCase
         );
     }
     
-    public function testNoDefaultValue()
+    public function testMissingMethodImpl()
     {
         $this->commonTestExecutorError(
-            '{ "f" : "exec.derived:1.0:advancedcall",
-               "p" : {
-                    "a" : 1,
-                    "b" : 2,
-                    "c" : 3,
-                    "d" : "4"
-               }}',
+            '{ "f" : "exec.derived:1.3:noimpl" }',
             \FutoIn\Error::InternalError,
             "Missing function implementation"
         );
     }
+
+    public function testRawDataRequired()
+    {
+        $this->commonTestExecutorError(
+            '{ "f" : "exec.derived:1.2:wrongdata" }',
+            \FutoIn\Error::InternalError,
+            "Raw result is expected"
+        );
+    }
+    
+    public function testUnknownResultVar()
+    {
+        $this->commonTestExecutorError(
+            '{ "f" : "exec.derived:1.2:unknownresult" }',
+            \FutoIn\Error::InternalError,
+            "Unknown result variable 'ping'"
+        );
+    }
+    
+    public function testMissingResultVar()
+    {
+        $this->commonTestExecutorError(
+            '{ "f" : "exec.derived:1.2:missingresult" }',
+            \FutoIn\Error::InternalError,
+            "Missing result variables"
+        );
+    }
+    
+    public function testNoResultVar()
+    {
+        $this->commonTestExecutorError(
+            '{ "f" : "exec.derived:1.2:noresult" }',
+            \FutoIn\Error::InternalError,
+            "No result variables are expected"
+        );
+    }
+
 
 
     public function commonTestExecutorError( $req_json, $exerr, $exerr_info, $add_info=[] )
@@ -423,6 +463,7 @@ class ExecutorTest extends PHPUnit_Framework_TestCase
                 
                 $this->assertEquals( $exerr_info, $as->error_info );
                 $this->assertEquals( $exerr, $req->e );
+                $this->assertTrue( !isset( $req->r ) );
 
                 $as->executed = true;
                 $as->success();
@@ -458,5 +499,32 @@ class ExecutorTest_SrvTestImpl
         }
         
         $as->success();
+    }
+    
+    public function wrongdata( $as, $reqinfo )
+    {
+        $as->success([
+            'ping' => 'abcd',
+        ]);
+    }
+    
+    public function unknownresult( $as, $reqinfo )
+    {
+        $as->success([
+            'ping' => 'abcd',
+            'pong' => 'abcd',
+        ]);
+    }
+    
+    public function missingresult( $as, $reqinfo )
+    {
+        $as->success();
+    }
+    
+    public function noresult( $as, $reqinfo )
+    {
+        $as->success([
+            'ping' => 'abcd',
+        ]);
     }
 }

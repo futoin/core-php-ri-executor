@@ -22,6 +22,22 @@
             }
         },
         "noargs" : {
+        },
+        "missingresult" : {
+            "result" : {
+                "res" : {
+                    "type" : "string"
+                }
+            }
+        },
+        "noresult" : {
+        },
+        "unknownresult" : {
+            "result" : {
+                "pong" : {
+                    "type" : "string"
+                }
+            }
         }
     },
     "requires" : [
