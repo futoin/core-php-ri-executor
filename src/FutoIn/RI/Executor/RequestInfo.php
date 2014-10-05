@@ -35,8 +35,6 @@ class RequestInfo
             self::INFO_X509_CN => null,
             self::INFO_PUBKEY => null,
             self::INFO_CLIENT_ADDR => null,
-            self::INFO_USER_AGENT => null,
-            self::INFO_COOKIES => [],
             self::INFO_SECURE_CHANNEL => false,
             self::INFO_REQUEST_TIME_FLOAT => microtime(true),
             self::INFO_SECURITY_LEVEL => self::SL_ANONYMOUS,
@@ -45,6 +43,8 @@ class RequestInfo
             self::INFO_RAW_RESPONSE => &$this->rawrsp,
             self::INFO_DERIVED_KEY => null,
             self::INFO_HAVE_RAW_UPLOAD => false,
+            self::INFO_HAVE_RAW_RESULT => false,
+            self::INFO_CHANNEL_CONTEXT => null,
         ];
         
         if ( isset( $rawreq->rid ) )
@@ -116,20 +116,10 @@ class RequestInfo
      * Get reference to Executor
      * @return \FutoIn\Executor
      */
-    public function context()
+    public function executor()
     {
         return $this->ctx;
     }
-    
-    /**
-     * [un]mark request as ready to be canceled on Invoker abort (disconnect)
-     * @param boolean $ignore Ignore user abort (yes/no)
-     */
-    public function ignoreInvokerAbort( $ignore = true )
-    {
-        ignore_user_abort( $ignore );
-    }
-    
     
     /**
      * info() access through RequestInfo interface / get value

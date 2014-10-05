@@ -104,7 +104,7 @@ class ExecutorTest extends PHPUnit_Framework_TestCase
     public function testReqInfo()
     {
         $req = new RequestInfo( $this->executor, 'Not Valid JSON' );
-        $this->assertEquals( $this->executor, $req->context() );
+        $this->assertEquals( $this->executor, $req->executor() );
         
         $req = new RequestInfo( $this->executor, '{"p":{}}' );
 
@@ -119,12 +119,6 @@ class ExecutorTest extends PHPUnit_Framework_TestCase
         
         $req->rawInput();
         $req->rawOutput();
-        
-        $req->ignoreInvokerAbort();
-        
-        if ( !defined('HHVM_VERSION') ) $this->assertEquals( 1, ignore_user_abort(true) );
-        $req->ignoreInvokerAbort( false );
-        if ( !defined('HHVM_VERSION') ) $this->assertEquals( 0, ignore_user_abort(false) );
     }
     
     /**
