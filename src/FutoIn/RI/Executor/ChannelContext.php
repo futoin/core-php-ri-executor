@@ -41,4 +41,16 @@ abstract class ChannelContext implements \FutoIn\Executor\ChannelContext
     {
         throw new \FutoIn\Error( \FutoIn\Error::InternalError );
     }
+    
+    /**
+     * @ignore
+     * @internal
+     */
+    abstract public function _openRawInput();
+    
+    /**
+     * @ignore
+     * @internal
+     */
+    abstract public function _openRawOutput();
 }

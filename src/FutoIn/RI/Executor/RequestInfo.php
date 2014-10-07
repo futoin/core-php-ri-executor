@@ -21,10 +21,15 @@ class RequestInfo
     protected $f_out = null;
     protected $f_in = null;
     
-    public function __construct( \FutoIn\RI\Executor\Executor $ctx, $reqjson )
+    public function __construct( \FutoIn\RI\Executor\Executor $ctx, $rawreq )
     {
         $this->ctx = $ctx;
-        $rawreq = json_decode( $reqjson );
+        
+        if ( is_string( $rawreq ) )
+        {
+            $rawreq = json_decode( $rawreq );
+        }
+            
         $this->rawreq = $rawreq;
         
         $rawrsp = new \StdClass;
@@ -91,9 +96,10 @@ class RequestInfo
      */
     public function rawInput()
     {
-        if ( is_null( $this->f_in ) )
+        if ( is_null( $this->f_in ) &&
+             !is_null( $this->{self::INFO_CHANNEL_CONTEXT} ) )
         {
-            $this->f_in = fopen( 'php://input', 'r' );
+            $this->f_in = $this->{self::INFO_CHANNEL_CONTEXT}->_openRawInput();
         }
         
         return $this->f_in;
@@ -104,9 +110,10 @@ class RequestInfo
      */
     public function rawOutput()
     {
-        if ( is_null( $this->f_out ) )
+        if ( is_null( $this->f_out ) &&
+             !is_null( $this->{self::INFO_CHANNEL_CONTEXT} ) )
         {
-            $this->f_out = fopen( 'php://output', 'w' );
+            $this->f_out = $this->{self::INFO_CHANNEL_CONTEXT}->_openRawOutput();
         }
         
         return $this->f_out;

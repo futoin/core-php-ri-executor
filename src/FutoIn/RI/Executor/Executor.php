@@ -17,6 +17,8 @@ use \FutoIn\RI\Invoker\Details\RegistrationInfo;
 class Executor
     implements \FutoIn\Executor\Executor
 {
+    const SAFE_JSON_MESSAGE_LIMIT = 65536;
+
     /** Secure Vault instance, if Master Service/Client model is used */
     const OPT_VAULT = 'vault';
     

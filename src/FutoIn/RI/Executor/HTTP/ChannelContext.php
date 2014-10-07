@@ -147,4 +147,23 @@ class ChannelContext
         
         setcookie( $name, $value, $expires, $path, $domain, $secure, $http_only );
     }
+    
+    /**
+     * @ignore
+     * @internal
+     */
+    public function _openRawInput()
+    {
+        return fopen( 'php://input', 'r' );
+    }
+    
+    /**
+     * @ignore
+     * @internal
+     */
+    public function _openRawOutput()
+    {
+        return fopen( 'php://output', 'w' );;
+    }
+
 }
