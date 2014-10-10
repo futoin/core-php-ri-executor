@@ -9,6 +9,7 @@ use \FutoIn\RI\Invoker\AdvancedCCM;
 use \FutoIn\RI\Executor\Executor;
 use \FutoIn\RI\Executor\RequestInfo;
 
+require_once __DIR__.'/ExecutorTest_SrvImpl.php';
  
 /**
  * @ignore
@@ -132,12 +133,12 @@ class ExecutorTest extends PHPUnit_Framework_TestCase
 
     public function testExecutorStringImpl()
     {
-        $this->commonTestExecutor( '\ExecutorTest_SrvTestImpl' );
+        $this->commonTestExecutor( '\ExecutorTest_SrvImpl' );
     }
     
     public function testExecutorInstImpl()
     {
-        $this->commonTestExecutor( new \ExecutorTest_SrvTestImpl( $this->executor ) );
+        $this->commonTestExecutor( new \ExecutorTest_SrvImpl( $this->executor ) );
     }
     
     public function testExecutorCallImpl()
@@ -147,13 +148,13 @@ class ExecutorTest extends PHPUnit_Framework_TestCase
     
     public function createSrvTestImpl( $executor )
     {
-        return new \ExecutorTest_SrvTestImpl( $executor );
+        return new \ExecutorTest_SrvImpl( $executor );
     }
     
     public function testExecutorClosureImpl()
     {
         $this->commonTestExecutor( function( $executor ){
-            return new \ExecutorTest_SrvTestImpl( $executor );
+            return new \ExecutorTest_SrvImpl( $executor );
         });
     }
     
@@ -427,8 +428,8 @@ class ExecutorTest extends PHPUnit_Framework_TestCase
             
         $this->as->add(
             function($as) {
-                $this->executor->register( $as, 'exec.derived:1.3', '\ExecutorTest_SrvTestImpl' );
-                $this->executor->register( $as, 'exec.secure:1.1', '\ExecutorTest_SrvTestImpl' );
+                $this->executor->register( $as, 'exec.derived:1.3', '\ExecutorTest_SrvImpl' );
+                $this->executor->register( $as, 'exec.secure:1.1', '\ExecutorTest_SrvImpl' );
                 $as->successStep();
             },
             function($as, $err) {
@@ -469,56 +470,5 @@ class ExecutorTest extends PHPUnit_Framework_TestCase
         
         $this->as->run();
         $this->assertTrue($this->as->executed);
-    }
-}
-
-class ExecutorTest_SrvTestImpl 
-    implements \FutoIn\Executor\InterfaceImplementation,
-        \FutoIn\Executor\AsyncImplementation
-{
-    public function ping( $as, $reqinfo )
-    {
-        $as->success([
-            'ping' => $reqinfo->params()->ping,
-            'pong' => 'PONGPONG',
-        ]);
-    }
-    
-    public function advancedcall( $as, $reqinfo )
-    {
-        if ( is_null($reqinfo->params()->d) ||
-             ( $reqinfo->params()->d === "4" ) )
-        {
-            $as->error( \FutoIn\Error::InternalError );
-        }
-        
-        $as->success();
-    }
-    
-    public function wrongdata( $as, $reqinfo )
-    {
-        $as->success([
-            'ping' => 'abcd',
-        ]);
-    }
-    
-    public function unknownresult( $as, $reqinfo )
-    {
-        $as->success([
-            'ping' => 'abcd',
-            'pong' => 'abcd',
-        ]);
-    }
-    
-    public function missingresult( $as, $reqinfo )
-    {
-        $as->success();
-    }
-    
-    public function noresult( $as, $reqinfo )
-    {
-        $as->success([
-            'ping' => 'abcd',
-        ]);
     }
 }

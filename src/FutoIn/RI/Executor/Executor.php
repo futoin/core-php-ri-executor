@@ -100,12 +100,6 @@ class Executor
             $as->error( \FutoIn\Error::InternalError, "Impl is not Object/String/Callable" );
         }
         
-        if ( !isset( $this->ifaces[$name] ) )
-        {
-            $this->ifaces[$name] = [];
-            $this->impls[$name] = [];
-        }
-        
         $info = new RegistrationInfo;
         $info->iface = $name;
         $info->version = $ifacever[1];
@@ -113,6 +107,12 @@ class Executor
         $info->mnrver = $mjrmnr[1];
 
         SpecTools::loadSpec( $as, $info, $this->specdirs );
+
+        if ( !isset( $this->ifaces[$name] ) )
+        {
+            $this->ifaces[$name] = [];
+            $this->impls[$name] = [];
+        }
 
         $this->ifaces[$name][$mjr] = $info;
         $this->impls[$name][$mjr] = $impl;

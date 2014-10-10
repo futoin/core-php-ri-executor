@@ -9,6 +9,8 @@
 
 namespace FutoIn\RI\Executor\HTTP;
 
+use \FutoIn\RI\Executor\RequestInfo;
+
 /**
  * FutoIn HTTP Communication Channel Context - Reference Implementation 
  * for standard PHP process
@@ -33,6 +35,8 @@ class Executor
 
     public function __construct( \FutoIn\RI\Invoker\AdvancedCCM $ccm, array $options )
     {
+        parent::__construct( $ccm, $options );
+        
         if ( isset( $options[self::OPT_SUBPATH] ) )
         {
             $subpath = $options[self::OPT_SUBPATH];
@@ -47,6 +51,8 @@ class Executor
     
     public function handleRequest()
     {
+        ini_set( 'display_errors', '0' );
+        
         $as = new \FutoIn\RI\ScopedSteps;
         $as->add(
             function($as){
@@ -59,11 +65,17 @@ class Executor
                 
                 $as->add(function($as){
                     $reqinfo = $as->reqinfo;
+                    $reqinfo_info = $reqinfo->info();
                     
                     if ( !is_null( $reqinfo_info->{RequestInfo::INFO_RAW_RESPONSE} ) )
                     {
                         header('Content-Type: application/futoin+json');
                         echo $reqinfo_info->{RequestInfo::INFO_RAW_RESPONSE};
+                    }
+                    
+                    if ( function_exists('fastcgi_finish_request') )
+                    {
+                        fastcgi_finish_request();
                     }
                     
                     $as->success();
@@ -72,6 +84,7 @@ class Executor
             function($as,$err){
                 error_log( "$err: ".$as->error_info );
                 http_response_code( 500 );
+                header( 'Content-Type: application/futoin+json' );
                 echo '{"e":"InvalidRequest"}';
             }
         );
@@ -81,14 +94,18 @@ class Executor
     private function getBaseRequestInfo( $as )
     {
         $have_upload = false;
-        $path_info = $_SERVER['PATH_INFO'];
+        
+        $uri = parse_url( $_SERVER['REQUEST_URI'] );
+        $path_info = $uri['path'];
         
         if ( substr( $path_info, -1 ) !== '/' )
         {
             $path_info .= '/';
         }
         
-        if ( preg_match( "/^{$this->subpath}\$/", $path_info ) )
+        $p_subpath = preg_quote( $this->subpath, '#' );
+        
+        if ( preg_match( '#^'.$p_subpath.'$#', $path_info ) )
         {
             if ( $_SERVER['REQUEST_METHOD'] === 'POST' )
             {
@@ -105,16 +122,21 @@ class Executor
                 $as->error( \FutoIn\Error::InvalidRequest, "Invalid request method" );
             }
         }
-        elseif ( preg_match( "/^{$this->subpath}(\\/[^\\/]+){3,4}\\/?\$/", $path_info, $m ) )
+        elseif ( preg_match( '#^'.$p_subpath.'([^/]+)/([^/]+)/([^/]+)(/([^/]+))?/?$#', $path_info, $m ) )
         {
             $iface = $m[1];
             $ver = $m[2];
             $func = $m[3];
-            $sec = isset( $m[4] ) ? $m[3] : null;
+            $sec = isset( $m[5] ) ? $m[5] : null;
             
             $jsonreq = new \StdClass;
             $jsonreq->f = "$iface:$ver:$func";
-            $jsonreq->p = json_decode(json_encode($_GET));
+            
+            if ( isset( $uri['query'] ) )
+            {
+                parse_str( $uri['query'], $get_params );
+                $jsonreq->p = json_decode(json_encode($get_params));
+            }
             
             if ( isset( $m[4] ) )
             {
@@ -126,11 +148,15 @@ class Executor
                 $have_upload = true;
             }
         }
+        else
+        {
+            $as->error( \FutoIn\Error::InvalidRequest, "Invalid request" );
+        }
         
-        $reqinfo = new \FutoIn\RI\Executor\RequestInfo( $this, $jsonreq );
+        $reqinfo = new RequestInfo( $this, $jsonreq );
         
-        $reqinfo->{INFO_HAVE_RAW_UPLOAD} = $have_upload;
-        $reqinfo->{INFO_REQUEST_TIME_FLOAT} = $_SERVER['REQUEST_TIME_FLOAT'];
+        $reqinfo->{RequestInfo::INFO_HAVE_RAW_UPLOAD} = $have_upload;
+        $reqinfo->{RequestInfo::INFO_REQUEST_TIME_FLOAT} = $_SERVER['REQUEST_TIME_FLOAT'];
         
         return $reqinfo;
     }
@@ -152,7 +178,7 @@ class Executor
         
         $channel_ctx = new \FutoIn\RI\Executor\HTTP\ChannelContext( $is_secure );
         
-        $saddr = new \FutoIn\RI\SourceAddress(
+        $saddr = new \FutoIn\RI\Executor\SourceAddress(
             null,
             $_SERVER['REMOTE_ADDR'],
             $_SERVER['REMOTE_PORT']
@@ -161,8 +187,8 @@ class Executor
         $innerinfo = $reqinfo->info();
         // TODO:
         //$innerinfo->{self::INFO_X509_CN} 
-        $innerinfo->{self::INFO_CLIENT_ADDR} = $saddr;
-        $innerinfo->{self::INFO_SECURE_CHANNEL} = $is_secure;
-        $innerinfo->{self::INFO_CHANNEL_CONTEXT} = $channel_ctx;
+        $innerinfo->{RequestInfo::INFO_CLIENT_ADDR} = $saddr;
+        $innerinfo->{RequestInfo::INFO_SECURE_CHANNEL} = $is_secure;
+        $innerinfo->{RequestInfo::INFO_CHANNEL_CONTEXT} = $channel_ctx;
     }
 }
