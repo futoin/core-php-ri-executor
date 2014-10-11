@@ -23,11 +23,8 @@
          strict="true"
          verbose="true">
     <testsuites>
-<testsuite name="Core RI Executor">
-<file>tests/BootstrapTest.php</file>
-</testsuite>
-
         <testsuite name="Core RI Executor">
+            <file>tests/BootstrapTest.php</file>
             <file>tests/ExecutorTest.php</file>
             <file>tests/HTTPExecutorTest.php</file>
         </testsuite>
@@ -41,4 +38,16 @@
             <file>vendor/futoin/core-php-ri-asyncsteps/tests/AsyncStepsTest.php</file>
         </testsuite>
     </testsuites>
+    
+    <!-- code coverage -->
+    <filter>
+        <whitelist addUncoveredFilesFromWhitelist="true">
+            <directory suffix=".php">./src</directory>
+            <directory suffix=".php">./vendor/futoin/core-php-ri-invoker/src</directory>
+            <directory suffix=".php">./vendor/futoin/core-php-ri-asyncsteps/src</directory>
+        </whitelist>
+    </filter>
+    <logging>
+        <log type="coverage-clover" target="./clover.xml"/>
+    </logging>
 </phpunit>
