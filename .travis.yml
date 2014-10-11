@@ -4,6 +4,7 @@ php:
   - hhvm
 before_script:
   - sudo ln -sfn ~/.phpenv/versions/$(phpenv version-name)/sbin/php-fpm /usr/sbin/php5-fpm
+  - sudo apt-get update && sudo apt-get install nginx
   - composer install
   - bash vendor/futoin/core-php-ri-invoker/.travis_install.sh
 script: phpunit
