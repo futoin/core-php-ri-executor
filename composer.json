@@ -1,6 +1,6 @@
 {
     "name" : "futoin/core-php-ri-executor",
-    "version" : "0.1",
+    "version" : "0.2",
     "description" : "FutoIn Core Reference Implementation for PHP - Executor",
     "authors" : [
         {
@@ -12,9 +12,9 @@
     "homepage" : "http://futoin.org",
     "require" : {
         "php" : ">=5.5",
-        "futoin/core-php-api" : "~0.4",
-        "futoin/core-php-ri-asyncsteps" : "~0.99.7",
-        "futoin/core-php-ri-invoker" : "~0.3",
+        "futoin/core-php-api" : "~0.5.1",
+        "futoin/core-php-ri-asyncsteps" : "~0.99.8",
+        "futoin/core-php-ri-invoker" : "~0.4",
         "ext-json": "*"
     },
     "require-dev" : {
