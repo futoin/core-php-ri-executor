@@ -39,8 +39,6 @@ class HTTPExecutorTest extends PHPUnit_Framework_TestCase
                 ),
                 $pipes
             );
-            
-            sleep( 1 ); // give it some time
         }
         else
         {
@@ -64,6 +62,8 @@ class HTTPExecutorTest extends PHPUnit_Framework_TestCase
             ),
             $pipes
         );
+        
+        sleep( 1 ); // give it some time
     }
     
     public static function tearDownAfterClass()
