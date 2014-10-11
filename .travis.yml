@@ -3,6 +3,7 @@ php:
   - 5.6
   - hhvm
 before_script:
+  - sudo bash -c 'add-apt-repository -y ppa:ondrej/php5 && apt-get update && apt-get install php5-fpm -y'
   - composer install
   - bash vendor/futoin/core-php-ri-invoker/.travis_install.sh
 script: phpunit
