@@ -28,15 +28,32 @@ class HTTPExecutorTest extends PHPUnit_Framework_TestCase
         if ( file_exists( $tmlink ) ) unlink( $tmlink );
         symlink( __DIR__, $tmlink );
         
-        self::$fpm_server = proc_open(
-            "/usr/sbin/php5-fpm --fpm-config ".__DIR__."/misc/fpm.conf",
-            array(
-                0 => array("file", '/dev/null', "r"),
-                1 => array("file", '/dev/null', "w"),
-                2 => array("file", '/dev/null', "w"),
-            ),
-            $pipes
-        );
+        if ( defined('HHVM_VERSION') )
+        {
+            self::$fpm_server = proc_open(
+                "hhvm --mode server -vServer.Type=fastcgi -vServer.Port=9123",
+                array(
+                    0 => array("file", '/dev/null', "r"),
+                    1 => array("file", '/dev/null', "w"),
+                    2 => array("file", '/dev/null', "w"),
+                ),
+                $pipes
+            );
+            
+            sleep( 1 ); // give it some time
+        }
+        else
+        {
+            self::$fpm_server = proc_open(
+                "/usr/sbin/php5-fpm --fpm-config ".__DIR__."/misc/fpm.conf",
+                array(
+                    0 => array("file", '/dev/null', "r"),
+                    1 => array("file", '/dev/null', "w"),
+                    2 => array("file", '/dev/null', "w"),
+                ),
+                $pipes
+            );
+        }
         
         self::$nginx_server = proc_open(
             "/usr/sbin/nginx -c ".__DIR__."/misc/nginx.conf",
