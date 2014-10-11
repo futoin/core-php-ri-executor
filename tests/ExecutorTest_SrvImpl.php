@@ -49,4 +49,12 @@ class ExecutorTest_SrvImpl
             'ping' => 'abcd',
         ]);
     }
+    
+    public function data( $as, $reqinfo )
+    {
+        $if = $reqinfo->rawInput();
+        $of = $reqinfo->rawOutput();
+        fwrite( $of, fread($if, 256) );
+        $as->success();
+    }
 }

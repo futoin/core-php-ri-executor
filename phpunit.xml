@@ -29,6 +29,7 @@
 
         <testsuite name="Core RI Executor">
             <file>tests/ExecutorTest.php</file>
+            <file>tests/HTTPExecutorTest.php</file>
         </testsuite>
 
         <testsuite name="Core RI Invoker">

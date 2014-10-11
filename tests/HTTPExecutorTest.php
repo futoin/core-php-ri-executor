@@ -52,12 +52,12 @@ class HTTPExecutorTest extends PHPUnit_Framework_TestCase
     public static function tearDownAfterClass()
     {
         $s = proc_get_status( self::$fpm_server );
-        posix_kill( $s['pid'], SIGKILL );
+        posix_kill( $s['pid'], SIGTERM );
+        $s = proc_get_status( self::$nginx_server );
+        posix_kill( $s['pid'], SIGTERM );
+
         proc_close( self::$fpm_server  );
         self::$fpm_server = null;
-        
-        $s = proc_get_status( self::$nginx_server );
-        posix_kill( $s['pid'], SIGKILL );
         proc_close( self::$nginx_server  );
         self::$nginx_server = null;
     }
@@ -106,4 +106,24 @@ class HTTPExecutorTest extends PHPUnit_Framework_TestCase
         });
         $this->as->run();
     }
+    
+    public function testDataCall()
+    {
+        $this->as->add(
+            function($as){
+                $bf = $this->ccm->iface( 'base' );
+                $bf->call( $as, 'data', array( 'ping' => 'PINGPING' ), 'MYDATA-HERE' );
+            },
+            function($as,$err){
+                var_dump($err);
+                var_dump($as->error_info);
+                $this->assertFalse( true );
+            }
+        )->add(function($as,$rsp){
+            $this->assertEquals( 'MYDATA-HERE', $rsp );
+        });
+        $this->as->run();
+    }
+
+
 }
