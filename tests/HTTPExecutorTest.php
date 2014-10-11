@@ -115,6 +115,8 @@ class HTTPExecutorTest extends PHPUnit_Framework_TestCase
                 $bf->call( $as, 'ping', array( 'ping' => 'PINGPING' ) );
             },
             function($as,$err){
+                var_dump( $err );
+                var_dump( $as->error_info );
                 $this->assertFalse( true );
             }
         )->add(function($as,$rsp){
