@@ -124,6 +124,7 @@ class HTTPExecutorTest extends PHPUnit_Framework_TestCase
             function($as,$err){
                 var_dump( $err );
                 var_dump( $as->error_info );
+                if ( isset( $as->_futoin_response ) ) var_dump( $as->_futoin_response );
                 $this->assertFalse( true );
             }
         )->add(function($as,$rsp){
