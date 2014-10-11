@@ -63,7 +63,14 @@ class HTTPExecutorTest extends PHPUnit_Framework_TestCase
             $pipes
         );
         
-        sleep( 1 ); // give it some time
+        // give it some time
+        do
+        {
+            sleep( 0.1 );
+            system( "bash -c 'netstat -ln | grep \":8080\" | read'", $nginxret );
+            system( "bash -c 'netstat -ln | grep \":9123\" | read'", $phpret );
+        }
+        while ( $nginxret || $phpret );
     }
     
     public static function tearDownAfterClass()
