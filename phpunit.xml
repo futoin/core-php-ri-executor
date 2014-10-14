@@ -48,6 +48,11 @@
         </whitelist>
     </filter>
     <logging>
+        <log type="coverage-html" target="./testcoverage"/>
         <log type="coverage-clover" target="./clover.xml"/>
     </logging>
+    
+    <php>
+        <ini name="date.timezone" value="UTC"/>
+    </php>
 </phpunit>
