@@ -19,18 +19,6 @@ class Executor
 {
     const SAFE_JSON_MESSAGE_LIMIT = 65536;
 
-    /** Secure Vault instance, if Master Service/Client model is used */
-    const OPT_VAULT = 'vault';
-    
-    /** array of directories where to search for iface specs named by FTN3 standard
-        
-        Note: It can be URL, if supported by file_get_contents(), but discouraged
-    */
-    const OPT_SPEC_DIRS = 'specdirs';
-    
-    /** Disable extra sanity checks for production mode performance */
-    const OPT_PROD_MODE = 'prodmode';
-
     private $ccm;
     private $ifaces = [];
     private $impls;
@@ -43,19 +31,14 @@ class Executor
     {
         $this->ccm = $ccm;
         
-        if ( isset( $options[self::OPT_VAULT] ) )
+        if ( isset( $options['specDirs'] ) )
         {
-            $this->vault = $options[self::OPT_VAULT];
+            $this->specdirs = (array)$options['specDirs'];
         }
         
-        if ( isset( $options[self::OPT_SPEC_DIRS] ) )
+        if ( isset( $options['prodMode'] ) )
         {
-            $this->specdirs = (array)$options[self::OPT_SPEC_DIRS];
-        }
-        
-        if ( isset( $options[self::OPT_PROD_MODE] ) )
-        {
-            $this->development_checks = !$options[self::OPT_PROD_MODE];
+            $this->development_checks = !$options['prodMode'];
         }
     }
     
@@ -142,6 +125,28 @@ class Executor
         }
     }
     
+    /**
+     * Entry point for Server-originated requests
+     * @param array info - internal CCM interface info
+     * @param object ftnreq - incoming FutoIn request object
+     * @param Callable send_executor_rsp( rsp ) - callback to send response
+     */
+    public function onEndpointRequest( $info, $ftnreq, $send_executor_rsp )
+    {
+        throw new \FutoIn\Error( \FutoIn\Error::NotImplemented );
+    }
+    
+    /**
+     * Entry point for in-program originated requests. Process with maximum efficiency
+     * @param $as - AsyncSteps interface
+     * @param array info - internal CCM interface info
+     * @param object ftnreq - incoming FutoIn request object
+     */
+    public function onInternalRequest( $as, $info, $ftnreq )
+    {
+        $as->error( \FutoIn\Error::NotImplemented, "onInternalRequest()" );
+    }
+
     /**
      * Process request, received for arbitrary channel, including unit-test generated
      * @param $as - AsyncSteps interface
@@ -428,6 +433,11 @@ class Executor
 
     protected function checkResult( \FutoIn\AsyncSteps $as, RequestInfo $reqinfo )
     {
+        if ( !$this->development_checks )
+        {
+            return;
+        }
+
         $rsp = $reqinfo->{RequestInfo::INFO_RAW_RESPONSE};
         $finfo = $as->_futoin_func_info;
 

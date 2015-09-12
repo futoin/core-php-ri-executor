@@ -129,6 +129,30 @@ class RequestInfo
     }
     
     /**
+     * Get reference to Executor
+     * @return \FutoIn\Executor\ChannelContext
+     */
+    public function channel()
+    {
+        return $this->{self::INFO_CHANNEL_CONTEXT};
+    }
+    
+    /**
+     * Set to abort request after specified timeout_ms from the moment of call.
+     * It must override any previous cancelAfter() call.
+     *
+     * @note it is different from as.setTimeout() as inner step timeout does 
+     * not override outer step timeout.
+     *
+     * @param integer timeout_ms - timeout in miliseconds to cancel after. 0 - disable timeout
+     */
+    public function cancelAfter( $timeout_ms )
+    {
+        new \FutoIn\Error( \FutoIn\Error::NotImplemented );
+    }
+
+    
+    /**
      * info() access through RequestInfo interface / get value
      * @param $name State variable name
      */

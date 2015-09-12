@@ -95,7 +95,7 @@ class HTTPExecutorTest extends PHPUnit_Framework_TestCase
         ];
         $this->as = new \FutoIn\RI\ScopedSteps();
         $this->ccm = new AdvancedCCM(array(
-                AdvancedCCM::OPT_SPEC_DIRS => $specdirs
+                'specDirs' => $specdirs
         ));
         
         $this->as->add(function($as){

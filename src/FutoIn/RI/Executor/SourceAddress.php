@@ -27,7 +27,7 @@ class SourceAddress
     {
         if ( is_null( $type ) )
         {
-            if ( !is_numeric( $port ) )
+            if ( $host === null )
             {
                 $type = self::TYPE_LOCAL;
             }
@@ -75,13 +75,20 @@ class SourceAddress
      */
     public function asString()
     {
-        $host = $this->host;
-        
-        if ( $this->type === self::TYPE_IPv6 )
+        if ( $this->type === self::TYPE_LOCAL )
         {
-            $host = "[$host]";
+            $host = $this->host;
+            
+            if ( $this->type === self::TYPE_IPv6 )
+            {
+                $host = "[$host]";
+            }
+            
+            return "{$this->type}:$host:{$this->port}";
         }
-        
-        return "{$this->type}:$host:{$this->port}";
+        else
+        {
+            return "{$this->type}:{$this->port}";
+        }
     }
 }

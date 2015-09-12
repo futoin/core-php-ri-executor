@@ -17,12 +17,12 @@ $specdirs = [
 //--
 $as = new \FutoIn\RI\ScopedSteps();
 $ccm = new AdvancedCCM(array(
-        AdvancedCCM::OPT_SPEC_DIRS => $specdirs
+        'specDirs' => $specdirs
 ));
 $executor = new Executor(
     $ccm,
     array(
-        Executor::OPT_SPEC_DIRS => $specdirs,
+        'specDirs' => $specdirs,
         Executor::OPT_SUBPATH => '/Server_HTTPExecutorTest.php',
     )
 );

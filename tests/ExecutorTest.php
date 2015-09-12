@@ -28,12 +28,12 @@ class ExecutorTest extends PHPUnit_Framework_TestCase
         ];
         $this->as = new \FutoIn\RI\ScopedSteps();
         $this->ccm = new AdvancedCCM(array(
-                AdvancedCCM::OPT_SPEC_DIRS => $specdirs
+                'specDirs' => $specdirs
         ));
         $this->executor = new Executor(
             $this->ccm,
             array(
-                Executor::OPT_SPEC_DIRS => $specdirs
+                'specDirs' => $specdirs
             )
         );
     }
