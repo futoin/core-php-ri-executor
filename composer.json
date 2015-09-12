@@ -1,6 +1,6 @@
 {
     "name" : "futoin/core-php-ri-executor",
-    "version" : "0.2",
+    "version" : "0.3",
     "description" : "FutoIn Core Reference Implementation for PHP - Executor",
     "authors" : [
         {
